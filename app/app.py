@@ -1,76 +1,33 @@
-import streamlit as st
-import joblib
-import pandas as pd
-import numpy as np
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
-import time
-import requests
+import mlflow
+import mlflow.sklearn
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
 
-# Prometheus Metrics
-PREDICTION_COUNTER = Counter('ml_predictions_total', 'Total predictions made', ['status'])
-PREDICTION_LATENCY = Histogram('ml_prediction_latency_seconds', 'Prediction latency')
-ERROR_COUNTER = Counter('ml_errors_total', 'Total errors', ['error_type'])
-
-# Load model
-@st.cache_resource
-def load_model():
-    return joblib.load('models/iris_model.pkl')
-
-model = load_model()
-
-# Streamlit UI
-st.title(" Iris Flower Classification")
-st.markdown("### Enter flower measurements:")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    sepal_length = st.number_input("Sepal Length (cm)", min_value=0.0, max_value=10.0, value=5.0)
-    sepal_width = st.number_input("Sepal Width (cm)", min_value=0.0, max_value=10.0, value=3.0)
-
-with col2:
-    petal_length = st.number_input("Petal Length (cm)", min_value=0.0, max_value=10.0, value=1.5)
-    petal_width = st.number_input("Petal Width (cm)", min_value=0.0, max_value=10.0, value=0.3)
-
-if st.button("Predict", type="primary"):
-    start_time = time.time()
-    try:
-        # Prepare input
-        input_data = np.array([[sepal_length, sepal_width, petal_length, petal_width]])
+def train_and_log_model():
+    # Load dataset
+    iris = load_iris()
+    X, y = iris.data, iris.target
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    # Start MLflow run
+    with mlflow.start_run(run_name="iris_rf_model"):
+        # Train model
+        model = RandomForestClassifier(n_estimators=100, random_state=42)
+        model.fit(X_train, y_train)
         
-        # Make prediction
-        prediction = model.predict(input_data)
-        probability = model.predict_proba(input_data)[0]
+        # Evaluate
+        y_pred = model.predict(X_test)
+        accuracy = accuracy_score(y_test, y_pred)
         
-        # Calculate latency
-        latency = time.time() - start_time
+        # Log parameters and metrics
+        mlflow.log_param("n_estimators", 100)
+        mlflow.log_metric("accuracy", accuracy)
         
-        # Update metrics
-        PREDICTION_COUNTER.labels(status='success').inc()
-        PREDICTION_LATENCY.observe(latency)
-        
-        # Display results
-        iris_classes = ['Setosa', 'Versicolor', 'Virginica']
-        predicted_class = iris_classes[prediction[0]]
-        
-        st.success(f"### Predicted Class: {predicted_class}")
-        
-        st.markdown("### Prediction Probabilities:")
-        prob_df = pd.DataFrame({
-            'Class': iris_classes,
-            'Probability': probability
-        })
-        st.bar_chart(prob_df.set_index('Class'))
-        
-        st.info(f"Prediction Time: {latency:.4f} seconds")
-        
-    except Exception as e:
-        latency = time.time() - start_time
-        PREDICTION_COUNTER.labels(status='error').inc()
-        ERROR_COUNTER.labels(error_type='prediction_error').inc()
-        st.error(f"Error: {str(e)}")
+        # Log the model to MLflow
+        mlflow.sklearn.log_model(model, "model")
+        print(f"Model logged to MLflow with accuracy: {accuracy:.4f}")
 
-# Metrics endpoint
-st.sidebar.markdown("### Monitoring")
-if st.sidebar.button("View Metrics"):
-    st.sidebar.code(generate_latest().decode('utf-8'))
+if __name__ == "__main__":
+    train_and_log_model()
