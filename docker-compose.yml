@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3'
 
 services:
   ml-app:
@@ -6,8 +6,6 @@ services:
     ports:
       - "8501:8501"
       - "8000:8000"
-    environment:
-      - PROMETHEUS_MULTIPROC_DIR=/tmp/metrics
     volumes:
       - ./models:/app/models
     restart: unless-stopped
@@ -27,6 +25,8 @@ services:
     networks:
       - monitoring-network
     restart: unless-stopped
+    depends_on:
+      - ml-app
 
   grafana:
     image: grafana/grafana:latest
@@ -37,7 +37,6 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana-dashboard.json:/etc/grafana/provisioning/dashboards/dashboard.json
     networks:
       - monitoring-network
     restart: unless-stopped
