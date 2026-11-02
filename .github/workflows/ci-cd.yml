@@ -1,0 +1,86 @@
+name: ML MLOps Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/ml-app
+  TAG: ${{ github.sha }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r app/requirements.txt
+          pip install pytest
+      
+      - name: Run tests
+        run: |
+          echo "Running tests..."
+          # Add your tests here
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Build Docker image
+        run: |
+          docker build -t $DOCKER_IMAGE:$TAG .
+          docker tag $DOCKER_IMAGE:$TAG $DOCKER_IMAGE:latest
+      
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      
+      - name: Push to Docker Hub
+        run: |
+          docker push $DOCKER_IMAGE:$TAG
+          docker push $DOCKER_IMAGE:latest
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Deploy to Kubernetes
+        run: |
+          # Install kubectl
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          
+          # Configure kubectl (you'll need to set up kubeconfig)
+          # echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
+          # export KUBECONFIG=kubeconfig
+          
+          # Deploy
+          # kubectl apply -f kubernetes/deployment.yml
+          echo "Deployment configured - add your K8s cluster credentials"
+
+  monitor:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Health Check
+        run: |
+          # Add health check logic
+          echo "Checking application health..."
+          # curl -f http://your-app-url/_stcore/health || exit 1

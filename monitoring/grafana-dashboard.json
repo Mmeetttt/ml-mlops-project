@@ -1,0 +1,52 @@
+{
+  "dashboard": {
+    "title": "ML Application Monitoring",
+    "panels": [
+      {
+        "title": "Total Predictions",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(ml_predictions_total)",
+            "legendFormat": "Total Predictions"
+          }
+        ]
+      },
+      {
+        "title": "Prediction Latency (p95)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(ml_prediction_latency_seconds_bucket[5m]))",
+            "legendFormat": "p95 Latency"
+          }
+        ]
+      },
+      {
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(ml_errors_total[5m])",
+            "legendFormat": "Errors per second"
+          }
+        ]
+      },
+      {
+        "title": "Predictions by Status",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "sum by (status) (ml_predictions_total)",
+            "legendFormat": "{{status}}"
+          }
+        ]
+      }
+    ],
+    "refresh": "5s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    }
+  }
+}
